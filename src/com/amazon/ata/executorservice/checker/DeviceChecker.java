@@ -1,8 +1,15 @@
 package com.amazon.ata.executorservice.checker;
 
+import com.amazon.ata.executorservice.coralgenerated.customer.GetCustomerDevicesRequest;
+import com.amazon.ata.executorservice.coralgenerated.customer.GetCustomerDevicesResponse;
 import com.amazon.ata.executorservice.coralgenerated.devicecommunication.RingDeviceFirmwareVersion;
+import com.amazon.ata.executorservice.coralgenerated.devicecommunication.UpdateDeviceFirmwareRequest;
 import com.amazon.ata.executorservice.customer.CustomerService;
 import com.amazon.ata.executorservice.devicecommunication.RingDeviceCommunicatorService;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Utility object for checking version status of devices, and updating
@@ -36,7 +43,16 @@ public class DeviceChecker {
      */
     public int checkDevicesIteratively(final String customerId, RingDeviceFirmwareVersion version) {
         // PARTICIPANTS: implement in Phase 2
-        return 0;
+
+        List<String> deviceIds = getDeviceIds(customerId);
+
+        for(String deviceId : deviceIds){
+            DeviceCheckTask task = new DeviceCheckTask(this, deviceId, version);
+
+            task.run();
+
+        }
+        return deviceIds.size();
     }
 
     /**
@@ -46,8 +62,19 @@ public class DeviceChecker {
      * @return The number of devices that were checked
      */
     public int checkDevicesConcurrently(final String customerId, RingDeviceFirmwareVersion version) {
+        List<String> deviceIds = getDeviceIds(customerId);
+        ExecutorService executorService = Executors.newCachedThreadPool();
+
+        for(String deviceId : deviceIds){
+            DeviceCheckTask task = new DeviceCheckTask(this, deviceId, version);
+
+           /* executorService.submit(task);*/
+            task.run();
+
+        }
+        executorService.shutdown();
+        return deviceIds.size();
         // PARTICIPANTS: implement in Phase 3
-        return 0;
     }
 
     /**
@@ -57,6 +84,9 @@ public class DeviceChecker {
      */
     public void updateDevice(final String deviceId, final RingDeviceFirmwareVersion version) {
         System.out.println(String.format("[DeviceChecker] Updating device %s to version %s", deviceId, version));
+        UpdateDeviceFirmwareRequest request = UpdateDeviceFirmwareRequest.builder()
+                .withDeviceId(deviceId).withVersion(version).build();
+        Boolean success = this.ringDeviceCommunicatorService.updateDeviceFirmware(request).isWasSuccessful();
 
         // PARTICIPANTS: add remaining implementation here in Phase 4
     }
@@ -67,5 +97,12 @@ public class DeviceChecker {
 
     public RingDeviceCommunicatorService getRingDeviceCommunicatorService() {
         return ringDeviceCommunicatorService;
+    }
+
+    private List<String> getDeviceIds(String customerId){
+        GetCustomerDevicesRequest request = GetCustomerDevicesRequest.builder().withCustomerId(customerId).build();
+        GetCustomerDevicesResponse response =  this.customerService.getCustomerDevices(request);
+        return response.getDeviceIds();
+
     }
 }
